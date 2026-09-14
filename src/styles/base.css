@@ -1,0 +1,45 @@
+/**
+ * ZTP Base Styles
+ * Minimal resets on top of Tailwind. Keep this file small —
+ * component-level styling belongs in components, not here.
+ */
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-neutral-50 text-neutral-800 font-sans text-sm antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-semibold text-neutral-900 tracking-tight;
+  }
+
+  /* Consistent, visible focus states — required for a security product. */
+  :focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-primary-100);
+  }
+
+  /* Scrollbars: thin and quiet, matching the "instrumentation" feel. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-neutral-300);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}

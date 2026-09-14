@@ -1,0 +1,158 @@
+import { API_BASE_URL, CSRF_COOKIE_NAME, CSRF_HEADER_NAME, CSRF_BOOTSTRAP_PATH, DEFAULT_TIMEOUT_MS } from './api-config.js'
+
+export { API_BASE_URL }
+
+/**
+ * Thrown by apiRequest() for any non-2xx response, or when the
+ * request times out / the network fails. `status` is 0 for network
+ * errors and timeouts (there was no HTTP response to have a status).
+ */
+export class ApiError extends Error {
+  constructor(message, { status = 0, data = null } = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.data = data
+  }
+}
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+      (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+    )
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+function getOrCreateDeviceId() {
+  const DEVICE_ID_KEY = 'ztp_device_id'
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY)
+  if (!deviceId) {
+    deviceId = generateUUID()
+    localStorage.setItem(DEVICE_ID_KEY, deviceId)
+  }
+  return deviceId
+}
+
+let csrfCookiePrimed = false
+
+/**
+ * Hits the backend's CSRF bootstrap endpoint so it sets the
+ * XSRF-TOKEN cookie, if that hasn't happened yet this session.
+ * apiRequest() calls this automatically before any mutating request —
+ * there's normally no reason to call it directly. Safe to call more
+ * than once; only does real work the first time (or after the cookie
+ * has been cleared).
+ */
+function buildFullUrl(path) {
+  const cleanPath = path.replace(/^\//, '')
+  if (API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://')) {
+    const base = API_BASE_URL.endsWith('/') ? API_BASE_URL : API_BASE_URL + '/'
+    return new URL(cleanPath, base)
+  }
+  const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost'
+  const basePath = API_BASE_URL.endsWith('/') ? API_BASE_URL : API_BASE_URL + '/'
+  const base = new URL(basePath.replace(/^\//, ''), origin + '/')
+  return new URL(cleanPath, base)
+}
+
+export async function ensureCsrfCookie(force = false) {
+  if (!force && csrfCookiePrimed && getCookie(CSRF_COOKIE_NAME)) {
+    return
+  }
+  const url = buildFullUrl(CSRF_BOOTSTRAP_PATH)
+  await fetch(url, { credentials: 'include' })
+  csrfCookiePrimed = true
+}
+
+export async function apiRequest(path, { method = 'GET', body, params, headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, refreshCsrf = false } = {}) {
+  const url = buildFullUrl(path)
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) url.searchParams.set(key, value)
+    })
+  }
+
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+  const requestHeaders = { Accept: 'application/json', ...headers }
+  requestHeaders['X-Device-Id'] = getOrCreateDeviceId()
+  if (body !== undefined && !isFormData) requestHeaders['Content-Type'] = 'application/json'
+
+  // CSRF: force fresh token for auth flow endpoints to prevent stale tokens
+  if (MUTATING_METHODS.has(method.toUpperCase())) {
+    const cleanPath = '/' + path.replace(/^\//, '').split('?')[0]
+    const isAuthStep = ['/auth/login', '/auth/verify-device', '/auth/verify-device/resend', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/reset-password', '/auth/recover-with-phrase'].includes(cleanPath)
+    await ensureCsrfCookie(isAuthStep || refreshCsrf)
+    const csrfToken = getCookie(CSRF_COOKIE_NAME)
+    if (csrfToken) requestHeaders[CSRF_HEADER_NAME] = csrfToken
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+  let response
+  try {
+    response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      credentials: 'include', // send the session cookie; never store auth tokens in JS-readable storage
+      body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new ApiError(`Request to ${path} timed out after ${timeoutMs}ms`, { status: 0 })
+    }
+    throw new ApiError(`Network error requesting ${path}: ${err.message}`, { status: 0 })
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  const isJson = (response.headers.get('content-type') || '').includes('application/json')
+  const data = response.status === 204 ? null : isJson ? await response.json().catch(() => null) : await response.text()
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      const cleanPath = '/' + path.replace(/^\//, '').split('?')[0]
+      const isAuthBootstrapPath = ['/auth/login', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/me', '/auth/verify-device', '/auth/verify-device/resend'].includes(cleanPath)
+      if (!isAuthBootstrapPath) {
+        sessionStorage.removeItem('ztp_logged_in')
+        window.location.href = '/auth/session-expired.html'
+        return new Promise(() => {}) // halt further execution
+      }
+    }
+
+    throw new ApiError(data?.message || `Request to ${path} failed with status ${response.status}`, {
+      status: response.status,
+      data,
+    })
+  }
+
+  return data
+}
+
+export const apiGet = (path, opts = {}) => apiRequest(path, { ...opts, method: 'GET' })
+export const apiPost = (path, body, opts = {}) => apiRequest(path, { ...opts, method: 'POST', body })
+export const apiPatch = (path, body, opts = {}) => apiRequest(path, { ...opts, method: 'PATCH', body })
+export const apiPut = (path, body, opts = {}) => apiRequest(path, { ...opts, method: 'PUT', body })
+export const apiDelete = (path, bodyOrOpts, opts = {}) => {
+  if (bodyOrOpts && (bodyOrOpts.headers || bodyOrOpts.signal || bodyOrOpts.timeoutMs)) {
+    return apiRequest(path, { ...bodyOrOpts, method: 'DELETE' })
+  }
+  return apiRequest(path, { ...opts, method: 'DELETE', body: bodyOrOpts })
+}
