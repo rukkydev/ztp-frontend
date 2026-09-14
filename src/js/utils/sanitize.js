@@ -17,10 +17,39 @@ export function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ESCAPE_MAP[char])
 }
 
-const ESCAPE_MAP = {
+export const ESCAPE_MAP = {
   '&': '&amp;',
   '<': '&lt;',
   '>': '&gt;',
   '"': '&quot;',
   "'": '&#39;',
 }
+
+/**
+ * Sanitizes backend error messages to prevent raw Java/Spring framework exceptions,
+ * type conversion errors (e.g. "Conversion = ':'"), stack traces, or internal errors
+ * from leaking to user-facing UI.
+ */
+export function sanitizeErrorMessage(rawMsg, fallback = 'An unexpected error occurred. Please try again.') {
+  if (!rawMsg || typeof rawMsg !== 'string') return fallback
+  const trimmed = rawMsg.trim()
+  if (!trimmed) return fallback
+
+  const isTechnical =
+    /^Conversion\s*=/i.test(trimmed) ||
+    /Conversion\s*=\s*['":]/i.test(trimmed) ||
+    /Exception\b/i.test(trimmed) ||
+    /\b(java|javax|jakarta|org\.spring|org\.hibernate)\b/i.test(trimmed) ||
+    /JSON parse error/i.test(trimmed) ||
+    /Cannot deserialize/i.test(trimmed) ||
+    /could not execute/i.test(trimmed) ||
+    /Internal Server Error/i.test(trimmed) ||
+    /at [a-z0-9_.]+\([a-z0-9_.]+\.java:\d+\)/i.test(trimmed)
+
+  if (isTechnical) {
+    return fallback
+  }
+
+  return trimmed
+}
+

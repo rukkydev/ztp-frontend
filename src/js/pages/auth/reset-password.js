@@ -2,7 +2,7 @@ import '../../../styles/main.css'
 
 import $ from '../../core/dom.js'
 import { icon, registerIconPlugin } from '../../utils/icons.js'
-import { escapeHTML } from '../../utils/sanitize.js'
+import { escapeHTML, sanitizeErrorMessage } from '../../utils/sanitize.js'
 import { authShellHTML } from '../../components/auth-shell.js'
 import { statusContentHTML } from '../../components/auth-status.js'
 import { fieldError, clearAllFieldErrors, setSubmitting } from '../../components/form-field.js'
@@ -130,7 +130,8 @@ function wireForm(token) {
         // Token is invalid, expired, or already used — show error state
         await renderInvalidToken()
       } else {
-        const msg = (err instanceof ApiError && err.data?.message) ? err.data.message : 'An unexpected error occurred.'
+        const rawMsg = (err instanceof ApiError && err.data?.message) ? err.data.message : err.message
+        const msg = sanitizeErrorMessage(rawMsg, 'An unexpected error occurred.')
         showToast({ level: 'critical', title: 'Reset failed', message: msg })
       }
     }

@@ -10,7 +10,7 @@ import { showToast } from '../../components/toast.js'
 import { apiPost, ApiError } from '../../core/api-client.js'
 import { homePathForRole } from '../../config/roles.js'
 import { getPending2faEmail, clearPending2faEmail } from '../../utils/pending-2fa.js'
-import { escapeHTML } from '../../utils/sanitize.js'
+import { escapeHTML, sanitizeErrorMessage } from '../../utils/sanitize.js'
 
 registerIconPlugin($)
 
@@ -122,7 +122,7 @@ function wireForm(email) {
     } catch (err) {
       restore()
       if (err instanceof ApiError) {
-        $error.text(err.data?.message || 'Invalid or expired code. Please try again.').removeClass('hidden')
+        $error.text(sanitizeErrorMessage(err.data?.message, 'Invalid or expired code. Please try again.')).removeClass('hidden')
       } else {
         showToast({ level: 'critical', title: 'Verification failed', message: 'An unexpected error occurred.' })
       }

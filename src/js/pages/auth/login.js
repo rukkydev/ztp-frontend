@@ -10,6 +10,7 @@ import { showToast } from '../../components/toast.js'
 import { apiPost, ApiError } from '../../core/api-client.js'
 import { homePathForRole } from '../../config/roles.js'
 import { setPending2faEmail } from '../../utils/pending-2fa.js'
+import { sanitizeErrorMessage } from '../../utils/sanitize.js'
 
 registerIconPlugin($)
 
@@ -109,8 +110,14 @@ function wireForm() {
         return
       }
 
-      const errorMsg = (err instanceof ApiError ? err.data?.message || err.message : err.message) || 'Incorrect email or password.'
-      const lowerMsg = String(errorMsg).toLowerCase()
+      const rawErrorMsg = (err instanceof ApiError ? err.data?.message || err.message : err.message) || ''
+      const errorMsg = sanitizeErrorMessage(
+        rawErrorMsg,
+        err.status >= 500
+          ? 'An unexpected server error occurred. Please try again later.'
+          : 'Incorrect email or password. Please try again.'
+      )
+      const lowerMsg = String(rawErrorMsg).toLowerCase()
       const isSuspended =
         lowerMsg.includes('suspend') ||
         lowerMsg.includes('disabled') ||
@@ -146,6 +153,7 @@ function wireForm() {
         showToast({ level: 'critical', title: 'Sign-in failed', message: errorMsg })
         $form.find('#password').trigger('focus')
       }
+
     }
   })
 }

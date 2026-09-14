@@ -8,6 +8,8 @@ import { passwordFieldHTML, initPasswordToggles } from '../../components/passwor
 import { buttonHTML } from '../../components/button.js'
 import { showToast } from '../../components/toast.js'
 import { apiPost, ApiError } from '../../core/api-client.js'
+import { sanitizeErrorMessage } from '../../utils/sanitize.js'
+
 
 registerIconPlugin($)
 
@@ -178,7 +180,8 @@ function wireHandlers() {
         $('.mt-6').first().html(await recoverySuccessHTML())
       } catch (err) {
         restore()
-        const errorMsg = err instanceof ApiError ? err.data?.message || err.message : 'Invalid recovery phrase or email.'
+        const rawMsg = err instanceof ApiError ? err.data?.message || err.message : err.message
+        const errorMsg = sanitizeErrorMessage(rawMsg, 'Invalid recovery phrase or email.')
         showToast({ level: 'critical', title: 'Recovery failed', message: errorMsg })
         fieldError($form, 'recover-phrase', errorMsg)
         $form.find('#recover-phrase').trigger('focus')
