@@ -43,7 +43,6 @@ export function sanitizeErrorMessage(rawMsg, fallback = 'An unexpected error occ
     /JSON parse error/i.test(trimmed) ||
     /Cannot deserialize/i.test(trimmed) ||
     /could not execute/i.test(trimmed) ||
-    /Internal Server Error/i.test(trimmed) ||
     /at [a-z0-9_.]+\([a-z0-9_.]+\.java:\d+\)/i.test(trimmed)
 
   if (isTechnical) {
