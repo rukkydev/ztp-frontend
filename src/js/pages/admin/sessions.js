@@ -46,7 +46,13 @@ async function mountSessionsTable() {
     description: 'Every active session across the organization.',
   })
 
-  $('#page-content').html(`${header}<div id="sessions-table"></div>`)
+  const offlineBannerHTML = `
+    <div id="offline-banner" class="hidden mb-4 flex items-center gap-3 rounded-lg border border-warning-200 bg-warning-50 p-3.5 text-xs text-warning-800 shadow-sm" role="alert">
+      <span class="font-semibold text-warning-900">Offline / Demo Mode:</span>
+      <span>Could not connect to live API server. Showing cached sample session records.</span>
+    </div>`
+
+  $('#page-content').html(`${header}${offlineBannerHTML}<div id="sessions-table"></div>`)
 
   let sessions = []
 
@@ -54,10 +60,29 @@ async function mountSessionsTable() {
     try {
       table.setLoading(true)
       const res = await apiGet('/admin/sessions')
-      const liveData = res && res.data ? res.data : Array.isArray(res) ? res : []
-      sessions = liveData.length > 0 ? liveData : getAdminSessions()
+      const liveData = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.content)
+        ? res.data.content
+        : Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res)
+        ? res
+        : null
+
+      if (Array.isArray(liveData)) {
+        sessions = liveData.map((s) => ({
+          ...s,
+          sessionId: s.sessionId || s.id || s.token || 'session',
+        }))
+        $('#offline-banner').addClass('hidden')
+      } else {
+        sessions = getAdminSessions()
+        $('#offline-banner').removeClass('hidden')
+      }
     } catch (err) {
       sessions = getAdminSessions()
+      $('#offline-banner').removeClass('hidden')
     } finally {
       table.setLoading(false)
       table.setData(sessions)
@@ -78,12 +103,15 @@ async function mountSessionsTable() {
           return `<code class="font-mono text-xs bg-neutral-100 px-1.5 py-0.5 rounded" title="${escapeHTML(sid.slice(0, 12))}...">${escapeHTML(masked)}</code>`
         },
       },
-      { key: 'username', label: 'User', sortable: true, render: (row) => escapeHTML(row.username || row.user || 'Unknown') },
+      { key: 'username', label: 'User', sortable: true, render: (row) => escapeHTML(row.username || row.user || (row.userId ? `User #${row.userId}` : 'Unknown')) },
       {
         key: 'lastRequest',
         label: 'Last Active',
         sortable: true,
-        render: (row) => row.lastRequest ? formatRelativeTime(row.lastRequest) : row.lastActive || 'Unknown',
+        render: (row) => {
+          const ts = row.lastRequest || row.lastActive || row.updatedAt || row.createdAt
+          return ts ? formatRelativeTime(ts) : 'Active now'
+        },
       },
     ],
     data: sessions,

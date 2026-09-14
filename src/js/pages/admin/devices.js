@@ -94,7 +94,13 @@ async function mountDevicesTable() {
     description: 'Every device enrolled across the organization.',
   })
 
-  $('#page-content').html(`${header}<div id="devices-table"></div>`)
+  const offlineBannerHTML = `
+    <div id="offline-banner" class="hidden mb-4 flex items-center gap-3 rounded-lg border border-warning-200 bg-warning-50 p-3.5 text-xs text-warning-800 shadow-sm" role="alert">
+      <span class="font-semibold text-warning-900">Offline / Demo Mode:</span>
+      <span>Could not connect to live API server. Showing cached sample device records.</span>
+    </div>`
+
+  $('#page-content').html(`${header}${offlineBannerHTML}<div id="devices-table"></div>`)
 
   let devices = []
 
@@ -102,10 +108,26 @@ async function mountDevicesTable() {
     try {
       table.setLoading(true)
       const res = await apiGet('/admin/devices')
-      const liveData = res && res.data ? res.data : Array.isArray(res) ? res : []
-      devices = liveData.length > 0 ? liveData : getAdminDevices()
+      const liveData = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.content)
+        ? res.data.content
+        : Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res)
+        ? res
+        : null
+
+      if (Array.isArray(liveData)) {
+        devices = liveData
+        $('#offline-banner').addClass('hidden')
+      } else {
+        devices = getAdminDevices()
+        $('#offline-banner').removeClass('hidden')
+      }
     } catch (err) {
       devices = getAdminDevices()
+      $('#offline-banner').removeClass('hidden')
     } finally {
       table.setLoading(false)
       table.setData(devices)
