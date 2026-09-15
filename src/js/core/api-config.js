@@ -14,8 +14,10 @@
  * `/auth/login`, not `/api/auth/login`).
  */
 function getDynamicApiBaseUrl() {
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL
+  const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL
+  if (envUrl) {
+    const trimmed = envUrl.replace(/\/$/, '')
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
   }
   return '/api'
 }
@@ -26,7 +28,7 @@ function getBackendOrigin() {
   if (import.meta.env.VITE_BACKEND_ORIGIN) {
     return import.meta.env.VITE_BACKEND_ORIGIN.replace(/\/$/, '')
   }
-  const apiBase = import.meta.env.VITE_API_BASE_URL || ''
+  const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
   if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {
     return apiBase.replace(/\/api\/?$/, '').replace(/\/$/, '')
   }
@@ -50,5 +52,6 @@ export const CSRF_HEADER_NAME = 'X-XSRF-TOKEN'
 /** GET endpoint that sets the CSRF cookie. Called automatically by apiRequest() — see api-client.js. */
 export const CSRF_BOOTSTRAP_PATH = '/csrf-token'
 
-/** Default request timeout, in milliseconds, before a request is aborted. */
-export const DEFAULT_TIMEOUT_MS = 15000
+/** Default request timeout, in milliseconds, before a request is aborted. 60s to tolerate Render cold start. */
+export const DEFAULT_TIMEOUT_MS = 60000
+
