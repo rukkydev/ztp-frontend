@@ -49,15 +49,13 @@ function getOrCreateDeviceId() {
   return deviceId
 }
 
-let csrfCookiePrimed = false
+let cachedCsrfToken = null
+let csrfPromise = null
 
 /**
  * Hits the backend's CSRF bootstrap endpoint so it sets the
- * XSRF-TOKEN cookie, if that hasn't happened yet this session.
- * apiRequest() calls this automatically before any mutating request —
- * there's normally no reason to call it directly. Safe to call more
- * than once; only does real work the first time (or after the cookie
- * has been cleared).
+ * XSRF-TOKEN cookie (and provides the token in header/body for cross-origin setups).
+ * apiRequest() calls this automatically before any mutating request.
  */
 function buildFullUrl(path) {
   const cleanPath = path.replace(/^\//, '')
@@ -72,12 +70,36 @@ function buildFullUrl(path) {
 }
 
 export async function ensureCsrfCookie(force = false) {
-  if (!force && csrfCookiePrimed && getCookie(CSRF_COOKIE_NAME)) {
-    return
+  const cookieVal = getCookie(CSRF_COOKIE_NAME)
+  if (!force && (cachedCsrfToken || cookieVal)) {
+    return cachedCsrfToken || cookieVal
   }
-  const url = buildFullUrl(CSRF_BOOTSTRAP_PATH)
-  await fetch(url, { credentials: 'include' })
-  csrfCookiePrimed = true
+
+  if (csrfPromise && !force) {
+    return csrfPromise
+  }
+
+  csrfPromise = (async () => {
+    try {
+      const url = buildFullUrl(CSRF_BOOTSTRAP_PATH)
+      const res = await fetch(url, { credentials: 'include' })
+      const headerToken = res.headers.get('X-XSRF-TOKEN') || res.headers.get('XSRF-TOKEN')
+      if (headerToken) {
+        cachedCsrfToken = headerToken
+      }
+      const json = await res.json().catch(() => null)
+      if (json?.data?.token) {
+        cachedCsrfToken = json.data.token
+      }
+    } catch (err) {
+      console.warn('Could not bootstrap CSRF token:', err)
+    } finally {
+      csrfPromise = null
+    }
+    return cachedCsrfToken || getCookie(CSRF_COOKIE_NAME)
+  })()
+
+  return csrfPromise
 }
 
 export async function apiRequest(path, { method = 'GET', body, params, headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, refreshCsrf = false } = {}) {
@@ -93,14 +115,15 @@ export async function apiRequest(path, { method = 'GET', body, params, headers =
   requestHeaders['X-Device-Id'] = getOrCreateDeviceId()
   if (body !== undefined && !isFormData) requestHeaders['Content-Type'] = 'application/json'
 
-  // CSRF: force fresh token for auth flow endpoints to prevent stale tokens
+  // CSRF: ensure token is primed and sent for mutating requests
   if (MUTATING_METHODS.has(method.toUpperCase())) {
     const cleanPath = '/' + path.replace(/^\//, '').split('?')[0]
     const isAuthStep = ['/auth/login', '/auth/verify-device', '/auth/verify-device/resend', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/reset-password', '/auth/recover-with-phrase'].includes(cleanPath)
-    await ensureCsrfCookie(isAuthStep || refreshCsrf)
-    const csrfToken = getCookie(CSRF_COOKIE_NAME)
+    await ensureCsrfCookie(isAuthStep || refreshCsrf || !cachedCsrfToken)
+    const csrfToken = cachedCsrfToken || getCookie(CSRF_COOKIE_NAME)
     if (csrfToken) requestHeaders[CSRF_HEADER_NAME] = csrfToken
   }
+
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -135,6 +158,10 @@ export async function apiRequest(path, { method = 'GET', body, params, headers =
         window.location.href = '/auth/session-expired.html'
         return new Promise(() => {}) // halt further execution
       }
+    }
+
+    if (response.status === 403) {
+      cachedCsrfToken = null
     }
 
     throw new ApiError(data?.message || `Request to ${path} failed with status ${response.status}`, {
