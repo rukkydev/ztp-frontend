@@ -54,6 +54,7 @@ export default defineConfig({
         accountSessions: resolve(__dirname, 'account/sessions.html'),
         accountNotifications: resolve(__dirname, 'account/notification-settings.html'),
         login: resolve(__dirname, 'auth/login.html'),
+        register: resolve(__dirname, 'auth/register.html'),
         forgotPassword: resolve(__dirname, 'auth/forgot-password.html'),
         resetPassword: resolve(__dirname, 'auth/reset-password.html'),
         verifyDevice: resolve(__dirname, 'auth/verify-device.html'),

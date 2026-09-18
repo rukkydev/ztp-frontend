@@ -118,7 +118,7 @@ export async function apiRequest(path, { method = 'GET', body, params, headers =
   // CSRF: ensure token is primed and sent for mutating requests
   if (MUTATING_METHODS.has(method.toUpperCase())) {
     const cleanPath = '/' + path.replace(/^\//, '').split('?')[0]
-    const isAuthStep = ['/auth/login', '/auth/verify-device', '/auth/verify-device/resend', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/reset-password', '/auth/recover-with-phrase'].includes(cleanPath)
+    const isAuthStep = ['/auth/login', '/auth/register', '/auth/verify-device', '/auth/verify-device/resend', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/reset-password', '/auth/recover-with-phrase'].includes(cleanPath)
     await ensureCsrfCookie(isAuthStep || refreshCsrf || !cachedCsrfToken)
     const csrfToken = cachedCsrfToken || getCookie(CSRF_COOKIE_NAME)
     if (csrfToken) requestHeaders[CSRF_HEADER_NAME] = csrfToken

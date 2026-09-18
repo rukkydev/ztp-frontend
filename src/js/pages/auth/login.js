@@ -36,7 +36,7 @@ async function render() {
       title: 'Sign in to ZTP',
       subtitle: 'Enter your credentials to access the Zero Trust Platform.',
       contentHTML: content,
-      footerHTML: `Don't have access? <span class="font-medium text-neutral-700">Contact your administrator.</span>`,
+      footerHTML: `Don't have an account? <a href="/auth/register.html" class="font-medium text-primary-600 hover:text-primary-700">Create an account</a>`,
     })
   )
 }
@@ -162,4 +162,13 @@ $(async function () {
   await render()
   await initPasswordToggles(document)
   wireForm()
+
+  const urlParams = new URLSearchParams(window.location.search)
+  if (urlParams.get('registered') === 'true') {
+    showToast({
+      level: 'success',
+      title: 'Registration complete',
+      message: 'Your account was created successfully. Sign in with your credentials.',
+    })
+  }
 })
