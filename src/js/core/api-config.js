@@ -32,7 +32,7 @@ function getBackendOrigin() {
   if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {
     return apiBase.replace(/\/api\/?$/, '').replace(/\/$/, '')
   }
-  return 'http://localhost:8080'
+  return 'http://localhost:8000'
 }
 
 export const BACKEND_ORIGIN = getBackendOrigin()

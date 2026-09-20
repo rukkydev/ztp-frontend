@@ -9,7 +9,7 @@ import { setSubmitting } from '../../components/form-field.js'
 import { showToast } from '../../components/toast.js'
 import { apiPost, ApiError } from '../../core/api-client.js'
 import { homePathForRole } from '../../config/roles.js'
-import { getPending2faEmail, clearPending2faEmail } from '../../utils/pending-2fa.js'
+import { getPending2faEmail, getPending2faUserId, clearPending2faEmail } from '../../utils/pending-2fa.js'
 import { escapeHTML, sanitizeErrorMessage } from '../../utils/sanitize.js'
 
 registerIconPlugin($)
@@ -115,18 +115,33 @@ function wireForm(email) {
     const restore = setSubmitting($('#verify-submit'), 'Verifying…')
 
     try {
-      const response = await apiPost('/auth/verify-device', { email, code, rememberDevice })
+      let response
+      const userId = getPending2faUserId()
+      try {
+        response = await apiPost('/auth/verify-device', { email, code, rememberDevice })
+      } catch (err) {
+        if (err instanceof ApiError && (err.status === 404 || err.status === 405) && userId) {
+          response = await apiPost('/auth/verify-otp', { user_id: userId, code })
+        } else {
+          throw err
+        }
+      }
       
       // Handle both wrapped { data: { user, ... } } and flat shapes
       const result = response && response.data ? response.data : response
-      const { user, twoFactorRequired } = result
+      const user = result.user || result
+      const { twoFactorRequired } = result
 
       if (twoFactorRequired) {
         window.location.href = '/auth/two-factor.html'
+      } else if (user) {
+        clearPending2faEmail()
+        sessionStorage.setItem('ztp_logged_in', 'true')
+        window.location.href = homePathForRole(user.type || user.role)
       } else {
         clearPending2faEmail()
         sessionStorage.setItem('ztp_logged_in', 'true')
-        window.location.href = homePathForRole(user.role)
+        window.location.href = '/admin/dashboard.html'
       }
     } catch (err) {
       restore()

@@ -9,7 +9,7 @@ import { buttonHTML } from '../../components/button.js'
 import { showToast } from '../../components/toast.js'
 import { apiPost, ApiError } from '../../core/api-client.js'
 import { homePathForRole } from '../../config/roles.js'
-import { setPending2faEmail } from '../../utils/pending-2fa.js'
+import { setPending2faEmail, setPending2faUserId } from '../../utils/pending-2fa.js'
 import { sanitizeErrorMessage } from '../../utils/sanitize.js'
 
 registerIconPlugin($)
@@ -73,34 +73,39 @@ function wireForm() {
     const restore = setSubmitting($('#login-submit'), 'Signing in…')
 
     try {
-      const response = await apiPost('/auth/login', { email, password })
+      const response = await apiPost('/auth/login', { login: email, email, password })
 
-      // Backend always wraps: { data: { user, deviceVerificationRequired, twoFactorRequired }, message, success }
       if (!response || !response.data) {
         throw new ApiError(response?.message || 'Invalid email or password.', { status: 400, data: response })
       }
 
-      const { user, deviceVerificationRequired, twoFactorRequired } = response.data
+      const { user, deviceVerificationRequired, twoFactorRequired, requires_2fa, user_id } = response.data
 
-      if (!user && !deviceVerificationRequired && !twoFactorRequired) {
-        throw new ApiError(response.message || 'Invalid email or password.', { status: 400, data: response })
-      }
-
-      if (user && (user.status === 'Suspended' || user.enabled === false)) {
-        window.location.href = '/auth/account-suspended.html'
+      if (requires_2fa || twoFactorRequired) {
+        setPending2faEmail(email)
+        if (user_id) setPending2faUserId(user_id)
+        window.location.href = '/auth/two-factor.html'
         return
       }
 
       if (deviceVerificationRequired) {
         setPending2faEmail(email)
+        if (user_id) setPending2faUserId(user_id)
         window.location.href = '/auth/verify-device.html'
-      } else if (twoFactorRequired) {
-        setPending2faEmail(email)
-        window.location.href = '/auth/two-factor.html'
-      } else {
-        sessionStorage.setItem('ztp_logged_in', 'true')
-        window.location.href = homePathForRole(user.role)
+        return
       }
+
+      if (!user) {
+        throw new ApiError(response.message || 'Invalid email or password.', { status: 400, data: response })
+      }
+
+      if (user && (user.status === 'Suspended' || user.enabled === false || user.is_active === false)) {
+        window.location.href = '/auth/account-suspended.html'
+        return
+      }
+
+      sessionStorage.setItem('ztp_logged_in', 'true')
+      window.location.href = homePathForRole(user.type || user.role)
     } catch (err) {
       restore()
       console.error('Login error:', err)

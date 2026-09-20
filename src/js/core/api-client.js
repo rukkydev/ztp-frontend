@@ -39,15 +39,20 @@ function generateUUID() {
   })
 }
 
-function getOrCreateDeviceId() {
+export function getDeviceId() {
   const DEVICE_ID_KEY = 'ztp_device_id'
   let deviceId = localStorage.getItem(DEVICE_ID_KEY)
   if (!deviceId) {
-    deviceId = generateUUID()
+    deviceId = `dev_${generateUUID()}`
+    localStorage.setItem(DEVICE_ID_KEY, deviceId)
+  } else if (!deviceId.startsWith('dev_')) {
+    deviceId = `dev_${deviceId}`
     localStorage.setItem(DEVICE_ID_KEY, deviceId)
   }
   return deviceId
 }
+
+export const getOrCreateDeviceId = getDeviceId
 
 let cachedCsrfToken = null
 let csrfPromise = null
@@ -88,7 +93,9 @@ export async function ensureCsrfCookie(force = false) {
         cachedCsrfToken = headerToken
       }
       const json = await res.json().catch(() => null)
-      if (json?.data?.token) {
+      if (json?.csrf_token) {
+        cachedCsrfToken = json.csrf_token
+      } else if (json?.data?.token) {
         cachedCsrfToken = json.data.token
       }
     } catch (err) {
@@ -100,6 +107,14 @@ export async function ensureCsrfCookie(force = false) {
   })()
 
   return csrfPromise
+}
+
+export async function initializeSecurityContext() {
+  try {
+    await ensureCsrfCookie(true)
+  } catch (err) {
+    console.error('Failed to initialize CSRF security context', err)
+  }
 }
 
 export async function apiRequest(path, { method = 'GET', body, params, headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, refreshCsrf = false } = {}) {
@@ -150,9 +165,15 @@ export async function apiRequest(path, { method = 'GET', body, params, headers =
   const data = response.status === 204 ? null : isJson ? await response.json().catch(() => null) : await response.text()
 
   if (!response.ok) {
+    const errorCode = data?.error_code
+    const message = data?.message || `Request to ${path} failed with status ${response.status}`
+
     if (response.status === 401) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ztp:unauthenticated'))
+      }
       const cleanPath = '/' + path.replace(/^\//, '').split('?')[0]
-      const isAuthBootstrapPath = ['/auth/login', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/me', '/auth/verify-device', '/auth/verify-device/resend'].includes(cleanPath)
+      const isAuthBootstrapPath = ['/auth/login', '/auth/verify-otp', '/auth/resend-otp', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/me', '/auth/verify-device', '/auth/verify-device/resend'].includes(cleanPath)
       if (!isAuthBootstrapPath) {
         sessionStorage.removeItem('ztp_logged_in')
         window.location.href = '/auth/session-expired.html'
@@ -162,9 +183,18 @@ export async function apiRequest(path, { method = 'GET', body, params, headers =
 
     if (response.status === 403) {
       cachedCsrfToken = null
+      if (typeof window !== 'undefined') {
+        if (errorCode === 'DEVICE_BLOCKED') {
+          window.dispatchEvent(new CustomEvent('ztp:device_blocked', { detail: message }))
+        } else if (errorCode === 'ACCOUNT_LOCKED') {
+          window.dispatchEvent(new CustomEvent('ztp:account_locked', { detail: message }))
+        } else if (errorCode === 'FORBIDDEN_INSUFFICIENT_ROLE') {
+          window.dispatchEvent(new CustomEvent('ztp:forbidden', { detail: message }))
+        }
+      }
     }
 
-    throw new ApiError(data?.message || `Request to ${path} failed with status ${response.status}`, {
+    throw new ApiError(message, {
       status: response.status,
       data,
     })

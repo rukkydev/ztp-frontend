@@ -9,7 +9,7 @@ import { setSubmitting } from '../../components/form-field.js'
 import { showToast } from '../../components/toast.js'
 import { apiPost, ApiError } from '../../core/api-client.js'
 import { homePathForRole } from '../../config/roles.js'
-import { getPending2faEmail, clearPending2faEmail } from '../../utils/pending-2fa.js'
+import { getPending2faEmail, getPending2faUserId, clearPending2faEmail } from '../../utils/pending-2fa.js'
 import { escapeHTML, sanitizeErrorMessage } from '../../utils/sanitize.js'
 
 registerIconPlugin($)
@@ -61,9 +61,14 @@ function wireResend(email) {
     if ($resend.prop('disabled')) return
     
     try {
+      const userId = getPending2faUserId()
       let response
       try {
-        response = await apiPost('/auth/2fa/resend', { email })
+        if (userId) {
+          response = await apiPost('/auth/resend-otp', { user_id: userId })
+        } else {
+          response = await apiPost('/auth/2fa/resend', { email })
+        }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
           response = await apiPost('/auth/verify-device/resend', { email })
@@ -106,19 +111,37 @@ function wireForm(email) {
     const restore = setSubmitting($('#tfa-submit'), 'Verifying…')
 
     try {
-      const response = await apiPost('/auth/2fa/verify', { email, code })
+      const userId = getPending2faUserId()
+      let response
+      try {
+        if (userId) {
+          response = await apiPost('/auth/verify-otp', { user_id: userId, code })
+        } else {
+          response = await apiPost('/auth/2fa/verify', { email, code })
+        }
+      } catch (err) {
+        if (err instanceof ApiError && (err.status === 404 || err.status === 405)) {
+          response = await apiPost('/auth/2fa/verify', { email, code })
+        } else {
+          throw err
+        }
+      }
       
       // Handle both wrapped { data: { user, ... } } and flat { user, ... } shapes
       const result = response && response.data ? response.data : response
-      const { user, deviceVerificationRequired } = result
+      const user = result.user || result
+      const { deviceVerificationRequired } = result
       
       clearPending2faEmail()
 
       if (deviceVerificationRequired) {
         window.location.href = '/auth/verify-device.html'
+      } else if (user) {
+        sessionStorage.setItem('ztp_logged_in', 'true')
+        window.location.href = homePathForRole(user.type || user.role)
       } else {
         sessionStorage.setItem('ztp_logged_in', 'true')
-        window.location.href = homePathForRole(user.role)
+        window.location.href = '/admin/dashboard.html'
       }
     } catch (err) {
       restore()
