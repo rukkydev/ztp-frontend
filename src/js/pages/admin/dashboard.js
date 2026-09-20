@@ -109,12 +109,38 @@ async function mountDashboardPage() {
     ? placeholderCardHTML('Detection Timeline', 'Timeline data received — rendering not yet implemented for the real shape.')
     : placeholderCardHTML('Detection Timeline', 'Not available yet — the backend doesn\'t report this.')
 
+// Friendly fallback labels when the backend sends a null description
+const EVENT_LABEL = {
+  LOGIN_SUCCESS: 'Signed in successfully',
+  LOGIN_FAILED: 'Failed login attempt',
+  ACCOUNT_LOCKED: 'Account locked',
+  ACCOUNT_UNLOCKED: 'Account unlocked',
+  USER_CREATED: 'New user created',
+  USER_UPDATED: 'User profile updated',
+  USER_DELETED: 'User account deleted',
+  USER_SUSPENDED: 'User suspended',
+  USER_REGISTERED: 'Self-registered account',
+  PASSWORD_CHANGED: 'Password changed',
+  PASSWORD_RESET: 'Password reset',
+  TWO_FACTOR_ENABLED: '2FA enabled',
+  TWO_FACTOR_DISABLED: '2FA disabled',
+  DEVICE_REGISTERED: 'New device registered',
+  DEVICE_TRUSTED: 'Device marked as trusted',
+  DEVICE_REVOKED: 'Device revoked',
+  DEVICE_BLOCKED: 'Device blocked',
+  SESSION_TERMINATED: 'Session terminated',
+  OTP_SENT: 'OTP code sent',
+  OTP_VERIFIED: 'OTP verified',
+  LOGOUT: 'Signed out',
+}
+
   const activityItems = (recentActivity || []).map((event) => {
     const style = EVENT_STYLE[event.eventType] || DEFAULT_EVENT_STYLE
+    const description = event.description || EVENT_LABEL[event.eventType] || event.eventType || 'System event'
     return {
       iconName: style.iconName,
       tone: style.tone,
-      text: `${event.actorUsername} — ${event.description}`,
+      text: `${event.actorUsername || 'System'} — ${description}`,
       time: formatRelativeTime(event.createdAt),
     }
   })
