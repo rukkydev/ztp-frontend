@@ -14,6 +14,7 @@ export const ACCOUNT_NAV_GROUPS = [
       { id: 'sessions', label: 'My Sessions', icon: 'clock', href: '/account/sessions.html' },
       { id: 'notifications', label: 'Notifications', icon: 'bell', href: '/account/notifications.html' },
       { id: 'notification-settings', label: 'Notification Settings', icon: 'adjustments-horizontal', href: '/account/notification-settings.html' },
+      { id: 'settings', label: 'Settings', icon: 'cog-6-tooth', href: '/account/settings.html' },
     ],
   },
 ]

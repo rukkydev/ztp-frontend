@@ -52,6 +52,7 @@ export default defineConfig({
         accountProfile: resolve(__dirname, 'account/profile.html'),
         accountDevices: resolve(__dirname, 'account/devices.html'),
         accountSessions: resolve(__dirname, 'account/sessions.html'),
+        accountSettings: resolve(__dirname, 'account/settings.html'),
         accountNotifications: resolve(__dirname, 'account/notification-settings.html'),
         login: resolve(__dirname, 'auth/login.html'),
         register: resolve(__dirname, 'auth/register.html'),

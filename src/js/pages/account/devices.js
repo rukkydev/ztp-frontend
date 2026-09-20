@@ -153,10 +153,11 @@ async function renderDevices() {
 
 async function refreshDevices() {
   try {
-    const res = await apiGet('/account/devices')
-    devices = res && res.data ? res.data : Array.isArray(res) ? res : []
+    const res = await apiGet('/account/devices', { optional: true })
+    const liveData = res && res.data ? res.data : Array.isArray(res) ? res : []
+    devices = liveData.length > 0 ? liveData : getMyDevices()
   } catch (err) {
-    devices = []
+    devices = getMyDevices()
   }
   await renderDevices()
 }

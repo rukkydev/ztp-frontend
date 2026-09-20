@@ -15,7 +15,7 @@ import { buttonHTML } from '../../components/button.js'
 import { badgeHTML } from '../../components/badge.js'
 import { textFieldHTML, fieldError, clearAllFieldErrors, isValidEmail, setSubmitting } from '../../components/form-field.js'
 import { passwordFieldHTML, initPasswordToggles } from '../../components/password-field.js'
-import { API_BASE_URL, apiGet, apiPatch, apiPost, ApiError } from '../../core/api-client.js'
+import { API_BASE_URL, apiGet, apiPatch, apiPost, apiPut, ApiError } from '../../core/api-client.js'
 import { getAvatarSrc, initials } from '../../utils/avatar.js'
 
 registerIconPlugin($)
@@ -25,7 +25,7 @@ let recoveryPhraseConfigured = false
 
 async function loadProfile() {
   try {
-    const res = await apiGet('/account/profile')
+    const res = await apiGet('/account/profile', { optional: true })
     profile = res && res.data ? res.data : res
   } catch (err) {
     profile = getCurrentUserProfile()
@@ -33,7 +33,7 @@ async function loadProfile() {
   }
 
   try {
-    const statusRes = await apiGet('/account/security/recovery-phrase/status')
+    const statusRes = await apiGet('/account/security/recovery-phrase/status', { optional: true })
     recoveryPhraseConfigured = statusRes && typeof statusRes.data === 'boolean' ? statusRes.data : statusRes === true
   } catch {
     recoveryPhraseConfigured = false
@@ -260,7 +260,17 @@ async function renderView() {
         password: password,
         enabled: nextState,
       }
-      const res = await apiPatch('/account/profile/two-factor', payload)
+      // Try Laravel route first, then Java Spring fallback
+      let res
+      try {
+        res = await apiPost('/account/two-factor/toggle', payload)
+      } catch (e1) {
+        if (!e1.status || e1.status === 404) {
+          res = await apiPost('/user/two-factor/toggle', payload)
+        } else {
+          throw e1
+        }
+      }
       const updated = res && res.data ? res.data : res
       profile = {
         ...profile,
@@ -487,7 +497,7 @@ function renderEdit() {
     }
 
     try {
-      const res = await apiPatch('/account/profile', payload)
+      const res = await apiPut('/account/profile', payload)
       const updated = res && res.data ? res.data : res
       profile = { ...profile, ...payload, ...(updated || {}) }
       showToast({ level: 'success', title: 'Profile updated' })

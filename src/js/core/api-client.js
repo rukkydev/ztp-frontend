@@ -117,7 +117,7 @@ export async function initializeSecurityContext() {
   }
 }
 
-export async function apiRequest(path, { method = 'GET', body, params, headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, refreshCsrf = false } = {}) {
+export async function apiRequest(path, { method = 'GET', body, params, headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, refreshCsrf = false, optional = false } = {}) {
   const url = buildFullUrl(path)
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -174,7 +174,8 @@ export async function apiRequest(path, { method = 'GET', body, params, headers =
       }
       const cleanPath = '/' + path.replace(/^\//, '').split('?')[0]
       const isAuthBootstrapPath = ['/auth/login', '/auth/verify-otp', '/auth/resend-otp', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/me', '/auth/verify-device', '/auth/verify-device/resend'].includes(cleanPath)
-      if (!isAuthBootstrapPath) {
+      // Only hard-redirect if this is NOT a caller-optional request (i.e. one that has its own fallback)
+      if (!isAuthBootstrapPath && !optional) {
         sessionStorage.removeItem('ztp_logged_in')
         window.location.href = '/auth/session-expired.html'
         return new Promise(() => {}) // halt further execution

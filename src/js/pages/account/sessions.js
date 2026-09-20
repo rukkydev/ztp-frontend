@@ -142,11 +142,11 @@ async function renderSessions() {
 
 async function refreshSessions() {
   try {
-    const res = await apiGet('/account/sessions')
+    const res = await apiGet('/account/sessions', { optional: true })
     const liveData = res && res.data ? res.data : Array.isArray(res) ? res : []
-    sessions = liveData
+    sessions = liveData.length > 0 ? liveData : getMySessions()
   } catch (err) {
-    sessions = []
+    sessions = getMySessions()
   }
   await renderSessions()
 }

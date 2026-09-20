@@ -1,7 +1,7 @@
 import '../../../styles/main.css'
 
 import $ from '../../core/dom.js'
-import { requireAuth } from '../../core/auth-guard.js'
+import { requireAuth, getCachedUser } from '../../core/auth-guard.js'
 import { icon, registerIconPlugin } from '../../utils/icons.js'
 import { ACCOUNT_NAV_GROUPS } from '../../config/account-navigation.js'
 import { getCurrentUserProfile } from '../../config/mock-profile-data.js'
@@ -43,19 +43,52 @@ async function renderOverview() {
   let overviewData = null
   let isOffline = false
 
+  // Try the /account/overview endpoint first (Java backend has it),
+  // fall back gracefully when it's not available (Laravel backend).
   try {
     const res = await apiGet('/account/overview')
     overviewData = res && res.data ? res.data : res
-  } catch (err) {
-    isOffline = true
-    const profile = getCachedUser() || getCurrentUserProfile()
+  } catch {
+    // Endpoint missing or unauthenticated — build from parts
+  }
+
+  // If the overview endpoint didn't return usable data, build it from
+  // the cached session user + individual slim API calls.
+  if (!overviewData || typeof overviewData !== 'object') {
+    const cachedProfile = getCachedUser() || getCurrentUserProfile()
+    let deviceCount = 0
+    let sessionCount = 0
+    let unreadNotifications = 0
+    let hasRecoveryPhrase = false
+
+    try {
+      const devRes = await apiGet('/account/devices', { optional: true })
+      const devList = (devRes && devRes.data) ? devRes.data : (Array.isArray(devRes) ? devRes : [])
+      deviceCount = devList.length
+    } catch { /* ignore */ }
+
+    try {
+      const sessRes = await apiGet('/account/sessions', { optional: true })
+      const sessList = (sessRes && sessRes.data) ? sessRes.data : (Array.isArray(sessRes) ? sessRes : [])
+      sessionCount = sessList.length
+    } catch { /* ignore */ }
+
+    try {
+      const notifRes = await apiGet('/account/notifications/unread-count', { optional: true })
+      unreadNotifications = (notifRes && notifRes.data && typeof notifRes.data.count === 'number')
+        ? notifRes.data.count
+        : (typeof notifRes?.count === 'number' ? notifRes.count : 0)
+    } catch { /* ignore */ }
+
+
     overviewData = {
-      profile,
-      deviceCount: 0,
-      sessionCount: 0,
-      unreadNotifications: 0,
-      hasRecoveryPhrase: false,
+      profile: cachedProfile,
+      deviceCount,
+      sessionCount,
+      unreadNotifications,
+      hasRecoveryPhrase,
     }
+    isOffline = false
   }
 
   const profile = overviewData.profile || getCachedUser() || {}

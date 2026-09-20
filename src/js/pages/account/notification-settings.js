@@ -21,7 +21,7 @@ let preferences = null
 
 async function loadPreferences() {
   try {
-    const res = await apiGet('/account/notification-preferences')
+    const res = await apiGet('/account/notification-preferences', { optional: true })
     preferences = res && res.data ? res.data : res
   } catch (err) {
     preferences = getNotificationPreferences()
