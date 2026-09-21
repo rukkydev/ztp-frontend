@@ -8,7 +8,7 @@
  *
  * ── Backends ────────────────────────────────────────────────────────────────
  * Production (cPanel / Laravel):
- *   VITE_API_URL=http://fancy-onyx-otter.37-27-228-109.cpanel.site/public/api
+ *   VITE_API_URL=https://fordcapital.live/public/api
  *
  * Local dev (Laravel, port 8000):
  *   VITE_API_URL=http://localhost:8000
@@ -23,7 +23,7 @@
  */
 
 // Production cPanel Laravel backend
-const CPANEL_BACKEND = 'http://fancy-onyx-otter.37-27-228-109.cpanel.site/public'
+const CPANEL_BACKEND = 'https://fordcapital.live/public'
 
 function getDynamicApiBaseUrl() {
   const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL
@@ -46,7 +46,10 @@ function getBackendOrigin() {
   if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {
     return apiBase.replace(/\/api\/?$/, '').replace(/\/$/, '')
   }
-  // Default: local Laravel dev server
+  // Default: live production backend if in browser on non-localhost, else local dev
+  if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+    return 'https://fordcapital.live/public'
+  }
   return 'http://localhost:8000'
 }
 
