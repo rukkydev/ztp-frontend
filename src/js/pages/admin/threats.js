@@ -195,7 +195,16 @@ async function mountThreatsTable() {
     try {
       table.setLoading(true)
       const res = await apiGet('/admin/threats')
-      const liveData = res && res.data ? res.data : Array.isArray(res) ? res : null
+      const liveData = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res?.data?.content)
+        ? res.data.content
+        : Array.isArray(res)
+        ? res
+        : null
+
       if (Array.isArray(liveData)) {
         threats = liveData
         $('#offline-banner').addClass('hidden')

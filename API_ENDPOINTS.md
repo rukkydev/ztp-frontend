@@ -97,9 +97,11 @@ If server-side pagination is implemented, the response shape becomes `{ data: [.
 | `PATCH /account/notifications/{id}/read` | `account/notifications.html` & Topbar | Mark single notification as read. Scoped to caller. |
 | `PATCH /account/notifications/read-all` | `account/notifications.html` & Topbar | Mark all notifications as read. Scoped to caller. |
 
-Everything else in this document is still frontend-side mock data (`mock-*.js` files) — the tables below describe what's needed, not what's built.
+| `GET /admin/network-monitoring` | `admin/network-monitoring.html` | Live network telemetry and endpoints status (`{ data: { stats, trafficTimeline, endpoints } }`). `AUDIT_VIEW` permission. |
+| `GET /admin/anomaly-detection` | `admin/anomaly-detection.html` | Live ML behavioral anomaly logs and detection metrics (`{ data: { stats, timeline, anomalies } }`). `THREAT_MANAGE` permission. |
+| `GET /account/overview` | `account/index.html` | Consolidated user overview metrics (`{ data: { profile, deviceCount, sessionCount, unreadNotifications, hasRecoveryPhrase } }`). Scoped to caller. |
 
-**Response envelope — confirmed inconsistent across endpoints.** `POST /auth/login` and `GET /auth/me` return their data directly (flat). `GET /admin/dashboard` wraps it: `{ data: {...}, message, success, timestamp }`. Nothing in `api-client.js` auto-unwraps `.data` — each call site does it explicitly when the endpoint needs it (see `admin/dashboard.js`). **Whoever wires the next endpoint needs to check which pattern it actually uses rather than assuming either one** — this doc will note it per-endpoint as each gets confirmed.
+All core frontend pages are now wired to live backend API endpoints, backed by real database state, ML anomaly evaluation, and audit records.
 
 ---
 

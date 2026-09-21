@@ -193,8 +193,20 @@ async function mountAlertsTable() {
     try {
       table.setLoading(true)
       const res = await apiGet('/admin/alerts')
-      const liveData = res && res.data ? res.data : Array.isArray(res) ? res : null
-      if (Array.isArray(liveData)) {
+      const liveData = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res?.data?.content)
+        ? res.data.content
+        : Array.isArray(res)
+        ? res
+        : null
+
+      if (Array.isArray(liveData) && liveData.length > 0) {
+        alerts = liveData
+        $('#offline-banner').addClass('hidden')
+      } else if (Array.isArray(liveData)) {
         alerts = liveData
         $('#offline-banner').addClass('hidden')
       } else {
