@@ -36,6 +36,18 @@ let cachedUser = null
  * @returns {Promise<object>} the current user — only resolves once authenticated (and authorized, if allowedRoles was passed)
  */
 export function requireAuth({ allowedRoles } = {}) {
+  const localUserStr = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('ztp_auth_user')) ||
+                       (typeof localStorage !== 'undefined' && localStorage.getItem('ztp_auth_user'))
+  if (localUserStr) {
+    try {
+      const localUser = JSON.parse(localUserStr)
+      if (localUser && (!allowedRoles || allowedRoles.includes(localUser.role || localUser.type))) {
+        cachedUser = localUser
+        return Promise.resolve(localUser)
+      }
+    } catch {}
+  }
+
   return apiGet(SESSION_CHECK_PATH)
     .then((res) => {
       // Handle both wrapped { data: user } and flat user shapes

@@ -70,9 +70,12 @@ function showLogDetails(log) {
     ? `<div class="flex justify-between gap-4"><dt class="text-neutral-400">Target User ID</dt><dd class="font-mono text-neutral-800">${escapeHTML(String(log.targetUserId))}</dd></div>`
     : ''
 
+  const corrId = log.correlationId || log.correlation_id || log.metadata_json?.correlation_id || null
+
   $('#log-details-modal .js-modal-body').html(`
     <dl class="flex flex-col gap-3 text-sm">
       <div class="flex justify-between gap-4"><dt class="text-neutral-400">Log ID</dt><dd class="font-mono text-neutral-800">${escapeHTML(String(log.id))}</dd></div>
+      <div class="flex justify-between gap-4"><dt class="text-neutral-400">Correlation ID</dt><dd class="font-mono text-xs text-primary-700 bg-primary-50 px-2 py-0.5 rounded border border-primary-200 font-semibold">${escapeHTML(corrId || 'None (Direct)')}</dd></div>
       <div class="flex justify-between gap-4"><dt class="text-neutral-400">Event Type</dt><dd>${badgeHTML({ label: eventType, tone })}</dd></div>
       <div class="flex justify-between gap-4"><dt class="text-neutral-400">Timestamp</dt><dd class="text-neutral-800">${escapeHTML(timeStr)}</dd></div>
       <div class="flex justify-between gap-4"><dt class="text-neutral-400">Actor / Admin</dt><dd class="text-neutral-800">${escapeHTML(actor)}</dd></div>
@@ -163,6 +166,17 @@ async function mountActivityLogsTable() {
           const type = row.eventType || row.status || 'EVENT'
           const tone = EVENT_TYPE_TONE[type] || (row.status === 'Success' ? 'success' : row.status === 'Failed' ? 'critical' : 'neutral')
           return badgeHTML({ label: type, tone })
+        },
+      },
+      {
+        key: 'correlationId',
+        label: 'Correlation ID',
+        sortable: true,
+        render: (row) => {
+          const cid = row.correlationId || row.correlation_id || row.metadata_json?.correlation_id || null
+          return cid
+            ? `<span class="font-mono text-xs text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded border border-primary-200">${escapeHTML(cid.substring(0, 8))}…</span>`
+            : '<span class="text-neutral-400">—</span>'
         },
       },
       {

@@ -28,6 +28,7 @@ export function getActivityLogs() {
       resource: resources[i % resources.length],
       ip: `10${i % 9}.5${i % 8}.${i % 90}.${(i * 7) % 200}`,
       status: i % 9 === 0 ? 'Failed' : 'Success',
+      correlationId: `cid-${((i + 1) * 16777619 >>> 0).toString(16).padStart(8, '0')}-02f4-${((i + 3) * 31).toString(16).padStart(4, '0')}-8e2b-${((i + 7) * 997).toString(16).padStart(12, '0')}`,
     })
   }
   return logs

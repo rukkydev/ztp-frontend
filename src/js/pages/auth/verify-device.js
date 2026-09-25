@@ -46,7 +46,6 @@ function formHTML(email) {
       </label>
 
       ${buttonHTML({ variant: 'primary', label: 'Verify device', type: 'submit', className: 'w-full', attrs: { id: 'verify-submit' } })}
-      <p class="mt-3 text-center text-xs text-neutral-400">Testing environment? You can use code <span class="font-mono font-semibold text-neutral-600">123456</span>.</p>
     </form>`
 }
 

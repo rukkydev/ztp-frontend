@@ -176,6 +176,9 @@ export async function apiRequest(path, { method = 'GET', body, params, headers =
       const isAuthBootstrapPath = ['/auth/login', '/auth/register', '/auth/verify-otp', '/auth/resend-otp', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/me', '/auth/verify-device', '/auth/verify-device/resend'].includes(cleanPath)
       // Only hard-redirect if this is NOT a caller-optional request (i.e. one that has its own fallback)
       if (!isAuthBootstrapPath && !optional) {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('ztp_auth_user')) {
+          throw new ApiError(message, { status: 401, data })
+        }
         sessionStorage.removeItem('ztp_logged_in')
         window.location.href = '/auth/session-expired.html'
         return new Promise(() => {}) // halt further execution
